@@ -3,13 +3,14 @@ import {
   View,
   Text,
   TextInput,
-  Button,
   StyleSheet,
   TouchableOpacity,
   Image,
   Alert,
+  Platform,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { ScrollView } from 'react-native-gesture-handler';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { updateIntern, deleteInternPhoto, Intern } from '../storage/storage';
 
@@ -17,15 +18,44 @@ export default function EditInternScreen({ route, navigation }) {
   const { intern }: { intern: Intern } = route.params || {};
   const [nom, setNom] = useState(intern?.nom || '');
   const [prenoms, setPrenoms] = useState(intern?.prenoms || '');
-  const [dateNaissance, setDateNaissance] = useState(intern?.dateNaissance || '');
+  const [dateNaissance, setDateNaissance] = useState<Date | null>(
+    intern?.dateNaissance ? new Date(intern.dateNaissance) : null
+  );
+  const [showDateNaissancePicker, setShowDateNaissancePicker] = useState(false);
+  const [dateEntree, setDateEntree] = useState<Date | null>(
+    intern?.dateEntree ? new Date(intern.dateEntree) : null
+  );
+  const [showDateEntreePicker, setShowDateEntreePicker] = useState(false);
+  const [dateFin, setDateFin] = useState<Date | null>(
+    intern?.dateFin ? new Date(intern.dateFin) : null
+  );
+  const [showDateFinPicker, setShowDateFinPicker] = useState(false);
   const [departement, setDepartement] = useState(intern?.departement || '');
-  const [entreprise, setEntreprise] = useState(intern?.entreprise || '');
   const [tuteur, setTuteur] = useState(intern?.tuteur || '');
-  const [progression, setProgression] = useState(intern?.progression || '0%');
-  const [dateEntree, setDateEntree] = useState(intern?.dateEntree || '');
-  const [statut, setStatut] = useState(intern?.statut || 'En cours');
+  const [email, setEmail] = useState(intern?.email || '');
+  const [telephone, setTelephone] = useState(intern?.telephone || '');
+  const [cnps, setCnps] = useState(intern?.cnps || '');
+  const [renouvellementContrat, setRenouvellementContrat] = useState<string | null>(intern?.renouvellementContrat || null);
+  const [dureeRenouvellement, setDureeRenouvellement] = useState<string | null>(intern?.dureeRenouvellement || null);
   const [cni, setCni] = useState<string | null>(intern?.cni || null);
   const [extrait, setExtrait] = useState<string | null>(intern?.extrait || null);
+  const [cv, setCv] = useState<string | null>(intern?.cv || null);
+
+  // Mettre à jour la date de fin en fonction de la durée de renouvellement
+  useEffect(() => {
+    if (renouvellementContrat === 'Oui' && dateEntree && dureeRenouvellement) {
+      const newDateFin = new Date(dateEntree);
+      const monthsToAdd = parseInt(dureeRenouvellement.split(' ')[0], 10);
+      newDateFin.setMonth(newDateFin.getMonth() + monthsToAdd);
+      setDateFin(newDateFin);
+    } else if (renouvellementContrat === 'Non') {
+      setDureeRenouvellement(null);
+      // Si "Non", on garde la date de fin manuelle ou on la réinitialise si nécessaire
+      if (!dateFin) {
+        setDateFin(null);
+      }
+    }
+  }, [renouvellementContrat, dureeRenouvellement, dateEntree]);
 
   const handlePickImage = async (setImage: (uri: string | null) => void) => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -48,188 +78,456 @@ export default function EditInternScreen({ route, navigation }) {
     }
   };
 
-  const handleDeleteImage = async (type: 'cni' | 'extrait') => {
+  const handleDeleteImage = async (type: 'cni' | 'extrait' | 'cv') => {
     if (intern?.id) {
       await deleteInternPhoto(intern.id, type);
       if (type === 'cni') setCni(null);
       if (type === 'extrait') setExtrait(null);
+      if (type === 'cv') setCv(null);
       Alert.alert('Succès', `Photo ${type} supprimée`);
     }
   };
 
   const handleUpdateIntern = async () => {
-    if (intern?.id && nom && prenoms && dateNaissance && departement) {
+    if (!intern?.id || !nom || !prenoms || !dateNaissance || !departement) {
+      Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires.');
+      return;
+    }
+    try {
       await updateIntern(
         intern.id,
         {
           nom,
           prenoms,
-          dateNaissance,
+          dateNaissance: dateNaissance.toISOString().split('T')[0],
           departement,
           cni,
           extrait,
-          entreprise,
+          cv,
           tuteur,
-          progression,
-          dateEntree,
-          statut,
+          dateEntree: dateEntree ? dateEntree.toISOString().split('T')[0] : undefined,
+          dateFin: dateFin ? dateFin.toISOString().split('T')[0] : undefined,
+          email,
+          telephone,
+          cnps,
+          renouvellementContrat,
+          dureeRenouvellement,
         },
         'Mise à jour des informations'
       );
       Alert.alert('Succès', 'Stagiaire modifié avec succès');
       navigation.goBack();
-    } else {
-      Alert.alert('Erreur', 'Veuillez remplir les champs obligatoires');
+    } catch (error) {
+      Alert.alert('Erreur', 'Une erreur est survenue lors de la mise à jour.');
     }
   };
 
+  const onDateNaissanceChange = (event: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || dateNaissance;
+    setShowDateNaissancePicker(Platform.OS === 'ios');
+    setDateNaissance(currentDate);
+  };
+
+  const onDateEntreeChange = (event: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || dateEntree;
+    setShowDateEntreePicker(Platform.OS === 'ios');
+    setDateEntree(currentDate);
+  };
+
+  const onDateFinChange = (event: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || dateFin;
+    setShowDateFinPicker(Platform.OS === 'ios');
+    setDateFin(currentDate);
+  };
+
+  const formatDate = (date: Date | null) => {
+    if (!date) return '';
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Modifier un Stagiaire</Text>
-
-      <TextInput style={styles.input} placeholder="Nom" value={nom} onChangeText={setNom} />
-      <TextInput style={styles.input} placeholder="Prénoms" value={prenoms} onChangeText={setPrenoms} />
-      <TextInput
-        style={styles.input}
-        placeholder="Date de naissance (JJ/MM/AAAA)"
-        value={dateNaissance}
-        onChangeText={setDateNaissance}
-        keyboardType="numeric"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Date d’entrée (JJ/MM/AAAA)"
-        value={dateEntree}
-        onChangeText={setDateEntree}
-        keyboardType="numeric"
-      />
-      <TextInput style={styles.input} placeholder="Entreprise" value={entreprise} onChangeText={setEntreprise} />
-      <TextInput style={styles.input} placeholder="Tuteur" value={tuteur} onChangeText={setTuteur} />
-
-      <Text style={styles.label}>Département</Text>
-      <View style={styles.buttonContainer}>
-        {['MARKETING', 'JURIDIQUE', 'INFORMATIQUE'].map((dept) => (
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Modifier un Stagiaire</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Nom *"
+          value={nom}
+          onChangeText={setNom}
+          autoCapitalize="words"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Prénoms *"
+          value={prenoms}
+          onChangeText={setPrenoms}
+          autoCapitalize="words"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Téléphone"
+          value={telephone}
+          onChangeText={setTelephone}
+          keyboardType="phone-pad"
+        />
+        <TouchableOpacity
+          style={styles.datePickerButton}
+          onPress={() => setShowDateNaissancePicker(true)}
+        >
+          <Text style={styles.datePickerText}>
+            {dateNaissance ? formatDate(dateNaissance) : 'Date de naissance (JJ/MM/AAAA) *'}
+          </Text>
+        </TouchableOpacity>
+        {showDateNaissancePicker && (
+          <DateTimePicker
+            value={dateNaissance || new Date()}
+            mode="date"
+            display="default"
+            onChange={onDateNaissanceChange}
+            maximumDate={new Date()}
+          />
+        )}
+        <TouchableOpacity
+          style={styles.datePickerButton}
+          onPress={() => setShowDateEntreePicker(true)}
+        >
+          <Text style={styles.datePickerText}>
+            {dateEntree ? formatDate(dateEntree) : 'Date d’entrée (JJ/MM/AAAA)'}
+          </Text>
+        </TouchableOpacity>
+        {showDateEntreePicker && (
+          <DateTimePicker
+            value={dateEntree || new Date()}
+            mode="date"
+            display="default"
+            onChange={onDateEntreeChange}
+            maximumDate={new Date()}
+          />
+        )}
+        <TouchableOpacity
+          style={styles.datePickerButton}
+          onPress={() => setShowDateFinPicker(true)}
+          disabled={renouvellementContrat === 'Oui'} // Désactiver la sélection manuelle si renouvellement est "Oui"
+        >
+          <Text style={styles.datePickerText}>
+            {dateFin ? formatDate(dateFin) : 'Date de fin (JJ/MM/AAAA)'}
+          </Text>
+        </TouchableOpacity>
+        {showDateFinPicker && (
+          <DateTimePicker
+            value={dateFin || new Date()}
+            mode="date"
+            display="default"
+            onChange={onDateFinChange}
+            minimumDate={dateEntree || new Date()}
+          />
+        )}
+        <TextInput
+          style={styles.input}
+          placeholder="Tuteur"
+          value={tuteur}
+          onChangeText={setTuteur}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Numéro CNPS"
+          value={cnps}
+          onChangeText={setCnps}
+        />
+        <Text style={styles.label}>Renouvellement de contrat</Text>
+        <View style={styles.buttonContainer}>
           <TouchableOpacity
-            key={dept}
-            style={[styles.deptButton, departement === dept && styles.selectedDept]}
-            onPress={() => setDepartement(dept)}
+            style={[styles.optionButton, renouvellementContrat === 'Oui' && styles.selectedOption]}
+            onPress={() => setRenouvellementContrat('Oui')}
           >
-            <Text>{dept}</Text>
+            <Text style={[styles.optionButtonText, renouvellementContrat === 'Oui' && styles.selectedOptionText]}>
+              Oui
+            </Text>
           </TouchableOpacity>
-        ))}
-      </View>
-
-      <Picker selectedValue={progression} onValueChange={setProgression} style={styles.picker}>
-        <Picker.Item label="0%" value="0%" />
-        <Picker.Item label="25%" value="25%" />
-        <Picker.Item label="50%" value="50%" />
-        <Picker.Item label="75%" value="75%" />
-        <Picker.Item label="100%" value="100%" />
-      </Picker>
-
-      <Picker selectedValue={statut} onValueChange={setStatut} style={styles.picker}>
-        <Picker.Item label="En cours" value="En cours" />
-        <Picker.Item label="Terminé" value="Terminé" />
-        <Picker.Item label="Abandonné" value="Abandonné" />
-      </Picker>
-
-      <View style={styles.imageSection}>
-        <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setCni)}>
-          <Text>Ajouter CNI</Text>
-        </TouchableOpacity>
-        {cni && (
+          <TouchableOpacity
+            style={[styles.optionButton, renouvellementContrat === 'Non' && styles.selectedOption]}
+            onPress={() => {
+              setRenouvellementContrat('Non');
+              setDureeRenouvellement(null);
+            }}
+          >
+            <Text style={[styles.optionButtonText, renouvellementContrat === 'Non' && styles.selectedOptionText]}>
+              Non
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {renouvellementContrat === 'Oui' && (
           <>
-            <TouchableOpacity style={styles.imagePicker} onPress={() => handleViewImage(cni)}>
-              <Text>Voir CNI</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.imagePicker} onPress={() => handleDeleteImage('cni')}>
-              <Text>Supprimer CNI</Text>
-            </TouchableOpacity>
-            <Image source={{ uri: cni }} style={styles.imagePreview} />
+            <Text style={styles.label}>Durée du renouvellement</Text>
+            <View style={styles.buttonContainer}>
+              {['1 mois', '3 mois', '6 mois'].map((duree) => (
+                <TouchableOpacity
+                  key={duree}
+                  style={[styles.optionButton, dureeRenouvellement === duree && styles.selectedOption]}
+                  onPress={() => setDureeRenouvellement(duree)}
+                >
+                  <Text style={[styles.optionButtonText, dureeRenouvellement === duree && styles.selectedOptionText]}>
+                    {duree}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </>
         )}
-      </View>
-
-      <View style={styles.imageSection}>
-        <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setExtrait)}>
-          <Text>Ajouter Extrait</Text>
+        <Text style={styles.label}>Département *</Text>
+        <View style={styles.buttonContainer}>
+          {['MARKETING', 'JURIDIQUE', 'INFORMATIQUE'].map((dept) => (
+            <TouchableOpacity
+              key={dept}
+              style={[styles.deptButton, departement === dept && styles.selectedDept]}
+              onPress={() => setDepartement(dept)}
+            >
+              <Text style={[styles.deptButtonText, departement === dept && styles.selectedDeptText]}>
+                {dept}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={styles.imageSection}>
+          <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setCni)}>
+            <Text style={styles.imagePickerText}>Ajouter CNI</Text>
+          </TouchableOpacity>
+          {cni && (
+            <>
+              <TouchableOpacity style={styles.imagePicker} onPress={() => handleViewImage(cni)}>
+                <Text style={styles.imagePickerText}>Voir CNI</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.imagePicker} onPress={() => handleDeleteImage('cni')}>
+                <Text style={styles.imagePickerText}>Supprimer CNI</Text>
+              </TouchableOpacity>
+              <View style={styles.imageWrapper}>
+                <Image source={{ uri: cni }} style={styles.imagePreview} resizeMode="contain" />
+              </View>
+            </>
+          )}
+        </View>
+        <View style={styles.imageSection}>
+          <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setExtrait)}>
+            <Text style={styles.imagePickerText}>Ajouter Extrait</Text>
+          </TouchableOpacity>
+          {extrait && (
+            <>
+              <TouchableOpacity style={styles.imagePicker} onPress={() => handleViewImage(extrait)}>
+                <Text style={styles.imagePickerText}>Voir Extrait</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.imagePicker} onPress={() => handleDeleteImage('extrait')}>
+                <Text style={styles.imagePickerText}>Supprimer Extrait</Text>
+              </TouchableOpacity>
+              <View style={styles.imageWrapper}>
+                <Image source={{ uri: extrait }} style={styles.imagePreview} resizeMode="contain" />
+              </View>
+            </>
+          )}
+        </View>
+        <View style={styles.imageSection}>
+          <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setCv)}>
+            <Text style={styles.imagePickerText}>Ajouter CV</Text>
+          </TouchableOpacity>
+          {cv && (
+            <>
+              <TouchableOpacity style={styles.imagePicker} onPress={() => handleViewImage(cv)}>
+                <Text style={styles.imagePickerText}>Voir CV</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.imagePicker} onPress={() => handleDeleteImage('cv')}>
+                <Text style={styles.imagePickerText}>Supprimer CV</Text>
+              </TouchableOpacity>
+              <View style={styles.imageWrapper}>
+                <Image source={{ uri: cv }} style={styles.imagePreview} resizeMode="contain" />
+              </View>
+            </>
+          )}
+        </View>
+        <TouchableOpacity style={styles.addButton} onPress={handleUpdateIntern}>
+          <Text style={styles.addButtonText}>Mettre à jour</Text>
         </TouchableOpacity>
-        {extrait && (
-          <>
-            <TouchableOpacity style={styles.imagePicker} onPress={() => handleViewImage(extrait)}>
-              <Text>Voir Extrait</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.imagePicker} onPress={() => handleDeleteImage('extrait')}>
-              <Text>Supprimer Extrait</Text>
-            </TouchableOpacity>
-            <Image source={{ uri: extrait }} style={styles.imagePreview} />
-          </>
-        )}
       </View>
-
-      <Button title="Mettre à jour" onPress={handleUpdateIntern} color="#007AFF" />
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
+  scrollContainer: {
+    flexGrow: 1,
+    paddingBottom: 30,
     backgroundColor: '#F5F5F5',
   },
+  container: {
+    padding: 25,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 8,
+    margin: 20,
+  },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 30,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 20,
-    color: '#333',
+    marginBottom: 25,
+    color: '#2C3E50',
   },
   input: {
     height: 50,
-    borderColor: '#DDD',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-    backgroundColor: '#FFF',
+    borderColor: '#3498DB',
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    marginBottom: 20,
+    backgroundColor: '#F9F9F9',
+    fontSize: 16,
+    color: '#2C3E50',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
-  picker: {
+  datePickerButton: {
     height: 50,
-    marginBottom: 15,
+    borderColor: '#3498DB',
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    marginBottom: 20,
+    backgroundColor: '#F9F9F9',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: '#2C3E50',
+    opacity: 0.7,
   },
   label: {
     fontSize: 16,
-    marginBottom: 5,
+    fontWeight: '600',
+    marginBottom: 10,
+    color: '#2C3E50',
   },
   buttonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 15,
+    justifyContent: 'space-between',
+    marginBottom: 20,
   },
   deptButton: {
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#007AFF',
-    borderRadius: 5,
+    flex: 1,
+    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: '#3498DB',
+    borderRadius: 10,
+    backgroundColor: '#F9F9F9',
+    marginHorizontal: 5,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   selectedDept: {
-    backgroundColor: '#007AFF',
-    color: 'white',
+    backgroundColor: '#3498DB',
+  },
+  deptButtonText: {
+    color: '#2C3E50',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  selectedDeptText: {
+    color: '#FFF',
+  },
+  optionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: '#3498DB',
+    borderRadius: 10,
+    backgroundColor: '#F9F9F9',
+    marginHorizontal: 5,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  selectedOption: {
+    backgroundColor: '#3498DB',
+  },
+  optionButtonText: {
+    color: '#2C3E50',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  selectedOptionText: {
+    color: '#FFF',
   },
   imageSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
+    flexWrap: 'wrap',
   },
   imagePicker: {
-    padding: 10,
-    backgroundColor: '#DDD',
-    borderRadius: 5,
-    marginRight: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#3498DB',
+    borderRadius: 10,
+    marginRight: 15,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  imagePickerText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  imageWrapper: {
+    width: 150,
+    height: 100,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#DDD',
+    overflow: 'hidden',
+    marginBottom: 10,
   },
   imagePreview: {
-    width: 100,
-    height: 100,
+    width: '100%',
+    height: '100%',
+  },
+  addButton: {
+    backgroundColor: '#3498DB',
+    paddingVertical: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  addButtonText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

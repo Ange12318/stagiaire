@@ -1,26 +1,27 @@
+import 'react-native-gesture-handler'; // Ajout au début du fichier
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createStackNavigator } from '@react-navigation/stack';
 import LoginScreen from './screens/LoginScreen';
 import HomeScreen from './screens/HomeScreen';
 import AddInternScreen from './screens/AddInternScreen';
 import EditInternScreen from './screens/EditInternScreen';
 import InternListScreen from './screens/InternListScreen';
-import InternDetailsScreen from './screens/InternDetailsScreen'; // À créer
+import InternDetailsScreen from './screens/InternDetailsScreen';
 
-const Drawer = createDrawerNavigator();
+const Stack = createStackNavigator();
 
 export default function App() {
   return (
     <NavigationContainer>
-      <Drawer.Navigator initialRouteName="Login">
-        <Drawer.Screen name="Login" component={LoginScreen} options={{ drawerItemStyle: { display: 'none' } }} />
-        <Drawer.Screen name="Home" component={HomeScreen} options={{ title: 'Accueil' }} />
-        <Drawer.Screen name="AddIntern" component={AddInternScreen} options={{ title: 'Ajouter un Stagiaire' }} />
-        <Drawer.Screen name="EditIntern" component={EditInternScreen} options={{ drawerItemStyle: { display: 'none' } }} />
-        <Drawer.Screen name="InternList" component={InternListScreen} options={{ title: 'Liste des Stagiaires' }} />
-        <Drawer.Screen name="InternDetails" component={InternDetailsScreen} options={{ drawerItemStyle: { display: 'none' } }} />
-      </Drawer.Navigator>
+      <Stack.Navigator initialRouteName="Login">
+        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Gestion des Stagiaires' }} />
+        <Stack.Screen name="AddIntern" component={AddInternScreen} options={{ title: 'Ajouter un Stagiaire' }} />
+        <Stack.Screen name="EditIntern" component={EditInternScreen} options={{ title: 'Modifier un Stagiaire' }} />
+        <Stack.Screen name="InternList" component={InternListScreen} options={{ title: 'Liste des Stagiaires' }} />
+        <Stack.Screen name="InternDetails" component={InternDetailsScreen} options={{ title: 'Détails du Stagiaire' }} />
+      </Stack.Navigator>
     </NavigationContainer>
   );
 }

@@ -10,11 +10,15 @@ export interface Intern {
   departement: string;
   cni: string | null;
   extrait: string | null;
-  entreprise?: string;
   tuteur?: string;
-  progression?: string; // "25%", "50%", "75%", "100%"
   dateEntree?: string;
-  statut?: string; // "En cours", "Terminé", "Abandonné"
+  email?: string;
+  telephone?: string;
+  dateFin?: string;
+  cv?: string | null;
+  cnps?: string;
+  renouvellementContrat?: string; // "Oui" ou "Non"
+  dureeRenouvellement?: string; // Durée en mois (ex. "1 mois", "3 mois", "6 mois")
   history?: { date: string; changes: string }[];
 }
 
@@ -68,7 +72,18 @@ export const updateIntern = async (id: string, updatedData: Partial<Intern>, cha
   }
 };
 
-export const deleteInternPhoto = async (id: string, photoType: 'cni' | 'extrait') => {
+export const deleteIntern = async (id: string) => {
+  try {
+    const interns = await getInterns();
+    const updatedInterns = interns.filter((intern) => intern.id !== id);
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedInterns));
+  } catch (error) {
+    console.error("Erreur de suppression du stagiaire", error);
+    throw error;
+  }
+};
+
+export const deleteInternPhoto = async (id: string, photoType: 'cni' | 'extrait' | 'cv') => {
   try {
     const interns = await getInterns();
     const index = interns.findIndex((intern) => intern.id === id);
