@@ -8,11 +8,13 @@ import {
   Image,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { saveIntern } from '../storage/storage';
+import * as Permissions from 'react-native-permissions';
 
 export default function AddInternScreen({ navigation }) {
   const [nom, setNom] = useState('');
@@ -33,8 +35,8 @@ export default function AddInternScreen({ navigation }) {
   const [cni, setCni] = useState<string | null>(null);
   const [extrait, setExtrait] = useState<string | null>(null);
   const [cv, setCv] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Mettre à jour la date de fin en fonction de la durée de renouvellement
   useEffect(() => {
     if (renouvellementContrat === 'Oui' && dateEntree && dureeRenouvellement) {
       const newDateFin = new Date(dateEntree);
@@ -43,19 +45,30 @@ export default function AddInternScreen({ navigation }) {
       setDateFin(newDateFin);
     } else if (renouvellementContrat === 'Non') {
       setDureeRenouvellement(null);
-      // Si "Non", on garde la date de fin manuelle ou on la réinitialise si nécessaire
       if (!dateFin) {
         setDateFin(null);
       }
     }
   }, [renouvellementContrat, dureeRenouvellement, dateEntree]);
 
+  const requestPermissions = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Erreur', 'Permission d\'accès à la galerie refusée.');
+      return false;
+    }
+    return true;
+  };
+
   const handlePickImage = async (setImage: (uri: string | null) => void) => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 1,
+      quality: 0.5, // Réduction de la qualité pour optimiser le stockage
     });
 
     if (!result.canceled) {
@@ -71,11 +84,33 @@ export default function AddInternScreen({ navigation }) {
     }
   };
 
-  const handleAddIntern = async () => {
+  const validateForm = () => {
     if (!nom || !prenoms || !dateNaissance || !departement) {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs obligatoires.');
-      return;
+      return false;
     }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      Alert.alert('Erreur', 'Veuillez entrer un email valide.');
+      return false;
+    }
+    if (telephone && !/^\+?\d{10,14}$/.test(telephone)) {
+      Alert.alert('Erreur', 'Veuillez entrer un numéro de téléphone valide.');
+      return false;
+    }
+    if (renouvellementContrat === 'Oui' && !dureeRenouvellement) {
+      Alert.alert('Erreur', 'Veuillez sélectionner une durée de renouvellement.');
+      return false;
+    }
+    if (renouvellementContrat === 'Oui' && !dateEntree) {
+      Alert.alert('Erreur', 'Veuillez définir une date d\'entrée pour calculer la date de fin.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleAddIntern = async () => {
+    if (!validateForm()) return;
+    setLoading(true);
     try {
       await saveIntern({
         nom,
@@ -98,6 +133,8 @@ export default function AddInternScreen({ navigation }) {
       navigation.goBack();
     } catch (error) {
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'ajout.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -198,7 +235,7 @@ export default function AddInternScreen({ navigation }) {
         <TouchableOpacity
           style={styles.datePickerButton}
           onPress={() => setShowDateFinPicker(true)}
-          disabled={renouvellementContrat === 'Oui'} // Désactiver la sélection manuelle si renouvellement est "Oui"
+          disabled={renouvellementContrat === 'Oui'}
         >
           <Text style={styles.datePickerText}>
             {dateFin ? formatDate(dateFin) : 'Date de fin (JJ/MM/AAAA)'}
@@ -324,8 +361,16 @@ export default function AddInternScreen({ navigation }) {
             </>
           )}
         </View>
-        <TouchableOpacity style={styles.addButton} onPress={handleAddIntern}>
-          <Text style={styles.addButtonText}>Ajouter</Text>
+        <TouchableOpacity
+          style={[styles.addButton, loading && styles.disabledButton]}
+          onPress={handleAddIntern}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.addButtonText}>Ajouter</Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -494,6 +539,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
+  },
+  disabledButton: {
+    backgroundColor: '#A9A9A9',
   },
   addButtonText: {
     color: '#FFF',

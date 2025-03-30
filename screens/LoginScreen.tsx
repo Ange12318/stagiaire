@@ -1,23 +1,26 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity } from 'react-native'; // Ajout de TouchableOpacity
+import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
+import { useAuth } from '../context/AuthContext';
 
-export default function LoginScreen({ navigation }) {
+export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (username.trim() === '' || password.trim() === '') {
       Alert.alert('Erreur', 'Veuillez remplir tous les champs.');
       return;
     }
-    if (username === 'admin' && password === '1234') {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
-    } else {
-      Alert.alert('Erreur', 'Identifiants incorrects.');
+    setLoading(true);
+    try {
+      await login(username, password);
+    } catch (error) {
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -42,11 +45,17 @@ export default function LoginScreen({ navigation }) {
           autoCapitalize="none"
           autoCorrect={false}
         />
-        {username.trim() !== '' && password.trim() !== '' && (
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+        <TouchableOpacity
+          style={[styles.loginButton, (username.trim() === '' || password.trim() === '' || loading) && styles.disabledButton]}
+          onPress={handleLogin}
+          disabled={username.trim() === '' || password.trim() === '' || loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
             <Text style={styles.loginButtonText}>Se connecter</Text>
-          </TouchableOpacity>
-        )}
+          )}
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -95,6 +104,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 10,
+  },
+  disabledButton: {
+    backgroundColor: '#A9A9A9',
   },
   loginButtonText: {
     color: '#FFF',

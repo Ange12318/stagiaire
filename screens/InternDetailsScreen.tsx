@@ -1,9 +1,22 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView } from 'react-native';
-import { Intern } from '../storage/storage';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  ActivityIndicator,
+} from 'react-native';
+import { Intern, deleteIntern } from '../storage/storage';
 
-export default function InternDetailsScreen({ route }) {
+export default function InternDetailsScreen({ route, navigation }) {
   const { intern }: { intern: Intern } = route.params;
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const calculateTimeRemaining = (dateFin?: string) => {
     if (!dateFin) return 'Non défini';
@@ -22,53 +35,143 @@ export default function InternDetailsScreen({ route }) {
     return endDate < today;
   };
 
+  const handleViewImage = (uri: string | null) => {
+    if (uri) {
+      setSelectedImage(uri);
+      setModalVisible(true);
+    }
+  };
+
+  const handleEdit = () => {
+    navigation.navigate('EditIntern', { intern });
+  };
+
+  const handleDelete = async () => {
+    Alert.alert(
+      'Supprimer le stagiaire',
+      `Êtes-vous sûr de vouloir supprimer ${intern.nom} ${intern.prenoms} ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await deleteIntern(intern.id);
+              Alert.alert('Succès', 'Stagiaire supprimé avec succès');
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert('Erreur', 'Une erreur est survenue lors de la suppression.');
+            } finally {
+              setLoading(false);
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
         <Text style={styles.title}>Détails du Stagiaire</Text>
         <View style={styles.infoCard}>
-          <Text style={styles.info}><Text style={styles.label}>Nom :</Text> {intern.nom} {intern.prenoms}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Date de naissance :</Text> {intern.dateNaissance}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Département :</Text> {intern.departement}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Tuteur :</Text> {intern.tuteur || 'Non défini'}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Email :</Text> {intern.email || 'Non défini'}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Téléphone :</Text> {intern.telephone || 'Non défini'}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Date d’entrée :</Text> {intern.dateEntree || 'Non défini'}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Date de fin :</Text> {intern.dateFin || 'Non défini'}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Temps restant :</Text> {calculateTimeRemaining(intern.dateFin)}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Numéro CNPS :</Text> {intern.cnps || 'Non défini'}</Text>
-          <Text style={styles.info}><Text style={styles.label}>Renouvellement de contrat :</Text> {intern.renouvellementContrat || 'Non défini'}</Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Nom :</Text> {intern.nom} {intern.prenoms}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Date de naissance :</Text> {intern.dateNaissance}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Département :</Text> {intern.departement}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Tuteur :</Text> {intern.tuteur || 'Non défini'}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Email :</Text> {intern.email || 'Non défini'}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Téléphone :</Text> {intern.telephone || 'Non défini'}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Date d’entrée :</Text> {intern.dateEntree || 'Non défini'}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Date de fin :</Text> {intern.dateFin || 'Non défini'}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Temps restant :</Text> {calculateTimeRemaining(intern.dateFin)}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Numéro CNPS :</Text> {intern.cnps || 'Non défini'}
+          </Text>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Renouvellement de contrat :</Text>{' '}
+            {intern.renouvellementContrat || 'Non défini'}
+          </Text>
           {intern.renouvellementContrat === 'Oui' && (
-            <Text style={styles.info}><Text style={styles.label}>Durée du renouvellement :</Text> {intern.dureeRenouvellement || 'Non défini'}</Text>
+            <Text style={styles.info}>
+              <Text style={styles.label}>Durée du renouvellement :</Text>{' '}
+              {intern.dureeRenouvellement || 'Non défini'}
+            </Text>
           )}
           {isStageTerminated(intern.dateFin) && (
             <Text style={styles.statusTerminated}>Stage terminé</Text>
           )}
         </View>
 
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={handleEdit}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>Modifier</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.deleteButton, loading && styles.disabledButton]}
+            onPress={handleDelete}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.buttonText}>Supprimer</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.imageSection}>
           {intern.cni && (
             <View style={styles.imageContainer}>
               <Text style={styles.label}>CNI :</Text>
-              <View style={styles.imageWrapper}>
-                <Image source={{ uri: intern.cni }} style={styles.image} resizeMode="contain" />
-              </View>
+              <TouchableOpacity onPress={() => handleViewImage(intern.cni)}>
+                <View style={styles.imageWrapper}>
+                  <Image source={{ uri: intern.cni }} style={styles.image} resizeMode="contain" />
+                </View>
+              </TouchableOpacity>
             </View>
           )}
           {intern.extrait && (
             <View style={styles.imageContainer}>
               <Text style={styles.label}>Extrait :</Text>
-              <View style={styles.imageWrapper}>
-                <Image source={{ uri: intern.extrait }} style={styles.image} resizeMode="contain" />
-              </View>
+              <TouchableOpacity onPress={() => handleViewImage(intern.extrait)}>
+                <View style={styles.imageWrapper}>
+                  <Image source={{ uri: intern.extrait }} style={styles.image} resizeMode="contain" />
+                </View>
+              </TouchableOpacity>
             </View>
           )}
           {intern.cv && (
             <View style={styles.imageContainer}>
               <Text style={styles.label}>CV :</Text>
-              <View style={styles.imageWrapper}>
-                <Image source={{ uri: intern.cv }} style={styles.image} resizeMode="contain" />
-              </View>
+              <TouchableOpacity onPress={() => handleViewImage(intern.cv)}>
+                <View style={styles.imageWrapper}>
+                  <Image source={{ uri: intern.cv }} style={styles.image} resizeMode="contain" />
+                </View>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -78,7 +181,7 @@ export default function InternDetailsScreen({ route }) {
           {intern.history && intern.history.length > 0 ? (
             intern.history.map((item, index) => (
               <Text key={index} style={styles.historyItem}>
-                {item.date} - {item.changes}
+                {new Date(item.date).toLocaleString('fr-FR')} - {item.changes}
               </Text>
             ))
           ) : (
@@ -86,6 +189,30 @@ export default function InternDetailsScreen({ route }) {
           )}
         </View>
       </View>
+
+      {/* Modal pour afficher l'image en plein écran */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => setModalVisible(false)}
+          >
+            <Text style={styles.closeButtonText}>Fermer</Text>
+          </TouchableOpacity>
+          {selectedImage && (
+            <Image
+              source={{ uri: selectedImage }}
+              style={styles.fullImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -147,6 +274,36 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  editButton: {
+    backgroundColor: '#3498DB',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    flex: 1,
+    marginRight: 10,
+    alignItems: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#E74C3C',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    flex: 1,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#A9A9A9',
+  },
+  buttonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   imageSection: {
     marginBottom: 20,
   },
@@ -177,5 +334,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9F9F9',
     padding: 10,
     borderRadius: 5,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullImage: {
+    width: '90%',
+    height: '80%',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    backgroundColor: '#3498DB',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+  },
+  closeButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

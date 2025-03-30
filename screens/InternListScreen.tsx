@@ -2,164 +2,188 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   FlatList,
   StyleSheet,
-  Button,
-  TextInput,
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import { getInterns, Intern, deleteIntern } from '../storage/storage';
+import RNHTMLtoPDF from 'react-native-html-to-pdf';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import { getInterns, Intern } from '../storage/storage';
 
 export default function InternListScreen({ navigation }) {
   const [interns, setInterns] = useState<Intern[]>([]);
   const [filteredInterns, setFilteredInterns] = useState<Intern[]>([]);
-  const [search, setSearch] = useState('');
-  const [filterDate, setFilterDate] = useState('');
-  const [page, setPage] = useState(1);
-  const itemsPerPage = 10;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc'); // asc = croissant, desc = décroissant
+  const internsPerPage = 5;
 
   useEffect(() => {
-    const loadInterns = async () => {
-      const data = await getInterns();
-      setInterns(data);
-      setFilteredInterns(data);
+    const fetchInterns = async () => {
+      try {
+        const data = await getInterns();
+        setInterns(data);
+        setFilteredInterns(data);
+      } catch (error) {
+        Alert.alert('Erreur', 'Impossible de charger la liste des stagiaires.');
+      }
     };
-    loadInterns();
+    fetchInterns();
   }, []);
 
   useEffect(() => {
-    let result = interns;
-    if (search) {
-      result = result.filter(
+    let filtered = [...interns];
+    if (searchQuery) {
+      filtered = filtered.filter(
         (intern) =>
-          intern.nom.toLowerCase().includes(search.toLowerCase()) ||
-          intern.id.includes(search)
+          intern.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          intern.prenoms.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          intern.departement.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (intern.email && intern.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (intern.telephone && intern.telephone.toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
-    if (filterDate) {
-      result = result.sort((a, b) =>
-        filterDate === 'asc'
-          ? a.dateEntree?.localeCompare(b.dateEntree || '') || 0
-          : b.dateEntree?.localeCompare(a.dateEntree || '') || 0
-      );
-    }
-    setFilteredInterns(result);
-    setPage(1);
-  }, [search, filterDate, interns]);
+    filtered.sort((a, b) => {
+      const dateA = a.dateEntree ? new Date(a.dateEntree).getTime() : 0;
+      const dateB = b.dateEntree ? new Date(b.dateEntree).getTime() : 0;
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+    setFilteredInterns(filtered);
+    setCurrentPage(1); // Réinitialiser à la première page après recherche ou tri
+  }, [searchQuery, interns, sortOrder]);
 
+  const totalPages = Math.ceil(filteredInterns.length / internsPerPage);
   const paginatedInterns = filteredInterns.slice(
-    (page - 1) * itemsPerPage,
-    page * itemsPerPage
+    (currentPage - 1) * internsPerPage,
+    currentPage * internsPerPage
   );
+
+  const handleSearch = (text: string) => {
+    setSearchQuery(text);
+  };
+
+  const handleSort = () => {
+    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+  };
 
   const handleExportPDF = async () => {
+    if (filteredInterns.length === 0) {
+      Alert.alert('Erreur', 'Aucun stagiaire à exporter.');
+      return;
+    }
+
     try {
-      const csv = interns
-        .map((i) => `${i.nom},${i.prenoms},${i.departement},${i.email || ''},${i.telephone || ''},${i.dateEntree || ''},${i.dateFin || ''},${i.cnps || ''},${i.renouvellementContrat || ''}`)
-        .join('\n');
-      const fileUri = `${FileSystem.documentDirectory}interns.csv`;
-      await FileSystem.writeAsStringAsync(fileUri, csv);
-      await Sharing.shareAsync(fileUri);
+      const htmlContent = `
+        <h1>Liste des Stagiaires</h1>
+        <table border="1">
+          <tr>
+            <th>Nom</th>
+            <th>Prénoms</th>
+            <th>Département</th>
+            <th>Date d'entrée</th>
+            <th>Email</th>
+            <th>Téléphone</th>
+          </tr>
+          ${filteredInterns
+            .map(
+              (intern) => `
+                <tr>
+                  <td>${intern.nom}</td>
+                  <td>${intern.prenoms}</td>
+                  <td>${intern.departement}</td>
+                  <td>${intern.dateEntree || 'Non défini'}</td>
+                  <td>${intern.email || 'Non défini'}</td>
+                  <td>${intern.telephone || 'Non défini'}</td>
+                </tr>
+              `
+            )
+            .join('')}
+        </table>
+      `;
+
+      const options = {
+        html: htmlContent,
+        fileName: `liste_stagiaires_${new Date().toISOString()}`,
+        directory: 'Documents',
+      };
+
+      const file = await RNHTMLtoPDF.convert(options);
+      await Sharing.shareAsync(file.filePath);
     } catch (error) {
-      Alert.alert('Erreur', 'Échec de l\'exportation.');
+      Alert.alert('Erreur', 'Une erreur est survenue lors de l’exportation en PDF.');
     }
   };
 
-  const handleViewDetails = (intern: Intern) => {
-    navigation.navigate('InternDetails', { intern });
-  };
-
-  const handleDeleteIntern = async (id: string) => {
-    try {
-      await deleteIntern(id);
-      const updatedInterns = interns.filter((intern) => intern.id !== id);
-      setInterns(updatedInterns);
-      setFilteredInterns(updatedInterns);
-      Alert.alert('Succès', 'Stagiaire supprimé avec succès');
-    } catch (error) {
-      Alert.alert('Erreur', 'Une erreur est survenue lors de la suppression.');
-    }
-  };
-
-  const confirmDelete = (intern: Intern) => {
-    Alert.alert(
-      'Supprimer le stagiaire',
-      `Êtes-vous sûr de vouloir supprimer ${intern.nom} ${intern.prenoms} ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', onPress: () => handleDeleteIntern(intern.id), style: 'destructive' },
-      ]
-    );
-  };
-
-  const renderHeader = () => (
-    <View>
-      <Text style={styles.title}>Liste des Stagiaires</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Rechercher par nom ou numéro"
-        value={search}
-        onChangeText={setSearch}
-        autoCapitalize="none"
-        returnKeyType="search"
-        onSubmitEditing={() => {}} // Empêche le clavier de se fermer
-      />
-      <Picker selectedValue={filterDate} onValueChange={setFilterDate} style={styles.picker}>
-        <Picker.Item label="Trier par date" value="" />
-        <Picker.Item label="Date croissante" value="asc" />
-        <Picker.Item label="Date décroissante" value="desc" />
-      </Picker>
-    </View>
-  );
-
-  const renderFooter = () => (
-    <View style={styles.footer}>
-      <View style={styles.pagination}>
-        <Button
-          title="Précédent"
-          disabled={page === 1}
-          onPress={() => setPage(page - 1)}
-          color="#3498DB"
-        />
-        <Text style={styles.pageText}>Page {page}</Text>
-        <Button
-          title="Suivant"
-          disabled={page * itemsPerPage >= filteredInterns.length}
-          onPress={() => setPage(page + 1)}
-          color="#3498DB"
-        />
-      </View>
-      <Button title="Exporter en CSV" onPress={handleExportPDF} color="#3498DB" />
-    </View>
+  const renderIntern = ({ item }: { item: Intern }) => (
+    <TouchableOpacity
+      style={styles.internCard}
+      onPress={() => navigation.navigate('InternDetails', { intern: item })}
+    >
+      <Text style={styles.internName}>
+        {item.nom} {item.prenoms}
+      </Text>
+      <Text style={styles.internInfo}>Département: {item.departement}</Text>
+      <Text style={styles.internInfo}>Date d’entrée: {item.dateEntree || 'Non défini'}</Text>
+    </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={paginatedInterns}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.item}
-            onPress={() => handleViewDetails(item)}
-            onLongPress={() => confirmDelete(item)}
-          >
-            <Text style={styles.itemText}>{item.nom} {item.prenoms} - {item.departement}</Text>
-            <Button
-              title="Modifier"
-              onPress={() => navigation.navigate('EditIntern', { intern: item })}
-              color="#3498DB"
-            />
-          </TouchableOpacity>
-        )}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
-        contentContainerStyle={styles.listContent}
+      <Text style={styles.title}>Liste des Stagiaires</Text>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Rechercher (nom, prénom, département...)"
+        value={searchQuery}
+        onChangeText={handleSearch}
       />
+      <View style={styles.paginationContainer}>
+        <TouchableOpacity
+          style={[styles.paginationButton, currentPage === 1 && styles.disabledButton]}
+          onPress={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1 || filteredInterns.length === 0}
+        >
+          <Text style={styles.buttonText}>Précédent</Text>
+        </TouchableOpacity>
+        <Text style={styles.pageText}>
+          Page {filteredInterns.length === 0 ? 0 : currentPage} / {totalPages || 0}
+        </Text>
+        <TouchableOpacity
+          style={[
+            styles.paginationButton,
+            currentPage === totalPages && styles.disabledButton,
+          ]}
+          onPress={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages || filteredInterns.length === 0}
+        >
+          <Text style={styles.buttonText}>Suivant</Text>
+        </TouchableOpacity>
+      </View>
+      <TouchableOpacity style={styles.sortButton} onPress={handleSort}>
+        <Text style={styles.buttonText}>
+          Trier par date {sortOrder === 'asc' ? '↑' : '↓'}
+        </Text>
+      </TouchableOpacity>
+      {filteredInterns.length === 0 ? (
+        <Text style={styles.noDataText}>
+          {searchQuery ? 'Aucun stagiaire trouvé pour cette recherche.' : 'Aucun stagiaire disponible.'}
+        </Text>
+      ) : (
+        <FlatList
+          data={paginatedInterns}
+          renderItem={renderIntern}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+        />
+      )}
+      <TouchableOpacity
+        style={[styles.exportButton, filteredInterns.length === 0 && styles.disabledButton]}
+        onPress={handleExportPDF}
+        disabled={filteredInterns.length === 0}
+      >
+        <Text style={styles.buttonText}>Exporter en PDF</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -167,81 +191,92 @@ export default function InternListScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    padding: 20,
     backgroundColor: '#F5F5F5',
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 8,
   },
   title: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '700',
     textAlign: 'center',
-    marginVertical: 20,
+    marginBottom: 20,
     color: '#2C3E50',
   },
-  input: {
-    height: 50,
+  searchInput: {
+    borderWidth: 1,
     borderColor: '#3498DB',
-    borderWidth: 1.5,
     borderRadius: 10,
-    paddingHorizontal: 15,
-    marginBottom: 15,
-    backgroundColor: '#F9F9F9',
+    padding: 10,
+    marginBottom: 20,
     fontSize: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    marginHorizontal: 20,
-  },
-  picker: {
-    height: 50,
-    marginBottom: 15,
-    borderColor: '#3498DB',
-    borderWidth: 1.5,
-    borderRadius: 10,
-    backgroundColor: '#F9F9F9',
-    marginHorizontal: 20,
-  },
-  item: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#DDD',
     backgroundColor: '#FFF',
-    borderRadius: 10,
-    marginBottom: 10,
+  },
+  paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    marginHorizontal: 20,
+    marginBottom: 20,
   },
-  itemText: {
-    fontSize: 16,
-    color: '#34495E',
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
-  footer: {
+  paginationButton: {
+    backgroundColor: '#3498DB',
+    paddingVertical: 10,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    borderRadius: 10,
   },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 15,
+  disabledButton: {
+    backgroundColor: '#A9A9A9',
   },
   pageText: {
     fontSize: 16,
     color: '#2C3E50',
+  },
+  sortButton: {
+    backgroundColor: '#3498DB',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  buttonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  list: {
+    paddingBottom: 20,
+  },
+  internCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  internName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2C3E50',
+    marginBottom: 5,
+  },
+  internInfo: {
+    fontSize: 14,
+    color: '#34495E',
+  },
+  noDataText: {
+    fontSize: 16,
+    color: '#34495E',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  exportButton: {
+    backgroundColor: '#3498DB',
+    paddingVertical: 15,
+    borderRadius: 10,
+    marginTop: 20,
   },
 });
