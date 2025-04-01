@@ -13,7 +13,7 @@ import {
 import { ScrollView } from 'react-native-gesture-handler';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
-import { saveIntern } from '../storage/storage';
+import { useInterns } from '../context/InternContext';
 import * as Permissions from 'react-native-permissions';
 
 export default function AddInternScreen({ navigation }) {
@@ -36,6 +36,8 @@ export default function AddInternScreen({ navigation }) {
   const [extrait, setExtrait] = useState<string | null>(null);
   const [cv, setCv] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const { addIntern } = useInterns();
 
   useEffect(() => {
     if (renouvellementContrat === 'Oui' && dateEntree && dureeRenouvellement) {
@@ -68,7 +70,7 @@ export default function AddInternScreen({ navigation }) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 0.5, // Réduction de la qualité pour optimiser le stockage
+      quality: 0.5,
     });
 
     if (!result.canceled) {
@@ -112,7 +114,7 @@ export default function AddInternScreen({ navigation }) {
     if (!validateForm()) return;
     setLoading(true);
     try {
-      await saveIntern({
+      await addIntern({
         nom,
         prenoms,
         dateNaissance: dateNaissance.toISOString().split('T')[0],
@@ -130,7 +132,7 @@ export default function AddInternScreen({ navigation }) {
         dureeRenouvellement,
       });
       Alert.alert('Succès', 'Stagiaire ajouté avec succès');
-      navigation.goBack();
+      navigation.navigate('Home'); // Redirection vers Home au lieu de InternList
     } catch (error) {
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'ajout.');
     } finally {
@@ -304,7 +306,16 @@ export default function AddInternScreen({ navigation }) {
         )}
         <Text style={styles.label}>Département *</Text>
         <View style={styles.buttonContainer}>
-          {['MARKETING', 'JURIDIQUE', 'INFORMATIQUE'].map((dept) => (
+          {[
+            'MARKETING',
+            'JURIDIQUE',
+            'INFORMATIQUE',
+            'COMPTABILITE',
+            'RH',
+            'COTON',
+            'CREDIT SUPPORT',
+            'APPUIE TECHNIQUE',
+          ].map((dept) => (
             <TouchableOpacity
               key={dept}
               style={[styles.deptButton, departement === dept && styles.selectedDept]}
@@ -445,20 +456,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 20,
+    flexWrap: 'wrap',
   },
   deptButton: {
-    flex: 1,
     paddingVertical: 12,
     borderWidth: 1.5,
     borderColor: '#3498DB',
     borderRadius: 10,
     backgroundColor: '#F9F9F9',
     marginHorizontal: 5,
+    marginBottom: 10,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
+    minWidth: '30%',
   },
   selectedDept: {
     backgroundColor: '#3498DB',

@@ -10,28 +10,16 @@ import {
 } from 'react-native';
 import RNHTMLtoPDF from 'react-native-html-to-pdf';
 import * as Sharing from 'expo-sharing';
-import { getInterns, Intern } from '../storage/storage';
+import { useInterns } from '../context/InternContext';
+import { Intern } from '../storage/storage';
 
 export default function InternListScreen({ navigation }) {
-  const [interns, setInterns] = useState<Intern[]>([]);
+  const { interns } = useInterns();
   const [filteredInterns, setFilteredInterns] = useState<Intern[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc'); // asc = croissant, desc = décroissant
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const internsPerPage = 5;
-
-  useEffect(() => {
-    const fetchInterns = async () => {
-      try {
-        const data = await getInterns();
-        setInterns(data);
-        setFilteredInterns(data);
-      } catch (error) {
-        Alert.alert('Erreur', 'Impossible de charger la liste des stagiaires.');
-      }
-    };
-    fetchInterns();
-  }, []);
 
   useEffect(() => {
     let filtered = [...interns];
@@ -51,7 +39,7 @@ export default function InternListScreen({ navigation }) {
       return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
     });
     setFilteredInterns(filtered);
-    setCurrentPage(1); // Réinitialiser à la première page après recherche ou tri
+    setCurrentPage(1);
   }, [searchQuery, interns, sortOrder]);
 
   const totalPages = Math.ceil(filteredInterns.length / internsPerPage);

@@ -1,107 +1,79 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = 'interns_data';
-
 export interface Intern {
   id: string;
   nom: string;
   prenoms: string;
   dateNaissance: string;
-  departement: string;
-  cni: string | null;
-  extrait: string | null;
+  departement:
+    | 'MARKETING'
+    | 'JURIDIQUE'
+    | 'INFORMATIQUE'
+    | 'COMPTABILITE'
+    | 'RH'
+    | 'COTON'
+    | 'CREDIT SUPPORT'
+    | 'APPUIE TECHNIQUE';
+  cni?: string;
+  extrait?: string;
+  cv?: string;
   tuteur?: string;
   dateEntree?: string;
+  dateFin?: string;
   email?: string;
   telephone?: string;
-  dateFin?: string;
-  cv?: string | null;
   cnps?: string;
-  renouvellementContrat?: string; // "Oui" ou "Non"
-  dureeRenouvellement?: string; // Durée en mois (ex. "1 mois", "3 mois", "6 mois")
+  renouvellementContrat?: string;
+  dureeRenouvellement?: string;
   history?: { date: string; changes: string }[];
 }
 
-const validateInternData = (intern: Omit<Intern, 'id' | 'history'>) => {
-  if (!intern.nom || intern.nom.trim() === '') {
-    throw new Error('Le nom est requis.');
-  }
-  if (!intern.prenoms || intern.prenoms.trim() === '') {
-    throw new Error('Les prénoms sont requis.');
-  }
-  if (!intern.dateNaissance || !/^\d{4}-\d{2}-\d{2}$/.test(intern.dateNaissance)) {
-    throw new Error('La date de naissance est invalide (format attendu : YYYY-MM-DD).');
-  }
-  if (!intern.departement || !['MARKETING', 'JURIDIQUE', 'INFORMATIQUE'].includes(intern.departement)) {
-    throw new Error('Le département est invalide.');
-  }
-  if (intern.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(intern.email)) {
-    throw new Error('L\'email est invalide.');
-  }
-  if (intern.telephone && !/^\+?\d{10,14}$/.test(intern.telephone)) {
-    throw new Error('Le numéro de téléphone est invalide.');
-  }
-  if (intern.renouvellementContrat && !['Oui', 'Non'].includes(intern.renouvellementContrat)) {
-    throw new Error('Le renouvellement de contrat doit être "Oui" ou "Non".');
-  }
-  if (intern.renouvellementContrat === 'Oui' && !intern.dureeRenouvellement) {
-    throw new Error('La durée de renouvellement est requise si le renouvellement est "Oui".');
-  }
-  if (intern.dureeRenouvellement && !['1 mois', '3 mois', '6 mois'].includes(intern.dureeRenouvellement)) {
-    throw new Error('La durée de renouvellement est invalide.');
-  }
-};
+const INTERN_STORAGE_KEY = '@interns';
 
 export const saveIntern = async (intern: Omit<Intern, 'id' | 'history'>) => {
   try {
-    validateInternData(intern);
-    const existingInterns = await AsyncStorage.getItem(STORAGE_KEY);
-    const interns: Intern[] = existingInterns ? JSON.parse(existingInterns) : [];
+    const existingInterns = await getInterns();
     const newIntern: Intern = {
       id: Date.now().toString(),
+      history: [],
       ...intern,
-      history: [{ date: new Date().toISOString(), changes: 'Création du stagiaire' }],
     };
-    interns.push(newIntern);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(interns));
-    return newIntern;
+    const updatedInterns = [...existingInterns, newIntern];
+    await AsyncStorage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
   } catch (error) {
-    console.error("Erreur d'enregistrement du stagiaire", error);
-    throw error instanceof Error ? error : new Error('Erreur inconnue lors de l\'enregistrement.');
+    console.error('Error saving intern:', error);
+    throw error;
   }
 };
 
 export const getInterns = async (): Promise<Intern[]> => {
   try {
-    const interns = await AsyncStorage.getItem(STORAGE_KEY);
-    return interns ? JSON.parse(interns) : [];
+    const jsonValue = await AsyncStorage.getItem(INTERN_STORAGE_KEY);
+    return jsonValue != null ? JSON.parse(jsonValue) : [];
   } catch (error) {
-    console.error("Erreur de récupération des stagiaires", error);
-    throw new Error('Erreur lors de la récupération des stagiaires.');
+    console.error('Error retrieving interns:', error);
+    throw error;
   }
 };
 
 export const updateIntern = async (id: string, updatedData: Partial<Intern>, changeDescription: string) => {
   try {
     const interns = await getInterns();
-    const index = interns.findIndex((intern) => intern.id === id);
-    if (index === -1) {
-      throw new Error('Stagiaire non trouvé.');
-    }
-    const updatedIntern = { ...interns[index], ...updatedData };
-    validateInternData(updatedIntern);
-    interns[index] = {
-      ...updatedIntern,
-      history: [
-        ...(interns[index].history || []),
-        { date: new Date().toISOString(), changes: changeDescription },
-      ],
-    };
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(interns));
-    return interns[index];
+    const updatedInterns = interns.map((intern) => {
+      if (intern.id === id) {
+        const history = intern.history || [];
+        return {
+          ...intern,
+          ...updatedData,
+          history: [...history, { date: new Date().toISOString(), changes: changeDescription }],
+        };
+      }
+      return intern;
+    });
+    await AsyncStorage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
   } catch (error) {
-    console.error("Erreur de mise à jour du stagiaire", error);
-    throw error instanceof Error ? error : new Error('Erreur inconnue lors de la mise à jour.');
+    console.error('Error updating intern:', error);
+    throw error;
   }
 };
 
@@ -109,28 +81,25 @@ export const deleteIntern = async (id: string) => {
   try {
     const interns = await getInterns();
     const updatedInterns = interns.filter((intern) => intern.id !== id);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedInterns));
+    await AsyncStorage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
   } catch (error) {
-    console.error("Erreur de suppression du stagiaire", error);
-    throw new Error('Erreur lors de la suppression du stagiaire.');
+    console.error('Error deleting intern:', error);
+    throw error;
   }
 };
 
 export const deleteInternPhoto = async (id: string, photoType: 'cni' | 'extrait' | 'cv') => {
   try {
     const interns = await getInterns();
-    const index = interns.findIndex((intern) => intern.id === id);
-    if (index === -1) {
-      throw new Error('Stagiaire non trouvé.');
-    }
-    interns[index][photoType] = null;
-    interns[index].history = [
-      ...(interns[index].history || []),
-      { date: new Date().toISOString(), changes: `Suppression de la photo ${photoType}` },
-    ];
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(interns));
+    const updatedInterns = interns.map((intern) => {
+      if (intern.id === id) {
+        return { ...intern, [photoType]: undefined };
+      }
+      return intern;
+    });
+    await AsyncStorage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
   } catch (error) {
-    console.error("Erreur de suppression de la photo", error);
-    throw new Error('Erreur lors de la suppression de la photo.');
+    console.error('Error deleting intern photo:', error);
+    throw error;
   }
 };

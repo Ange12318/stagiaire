@@ -1,31 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { getInterns } from '../storage/storage';
+import { useInterns } from '../context/InternContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function HomeScreen({ navigation }) {
-  const [stats, setStats] = useState({ total: 0, marketing: 0, juridique: 0, informatique: 0 });
-  const [loading, setLoading] = useState(true);
+  const { interns } = useInterns();
+  const [stats, setStats] = useState({
+    total: 0,
+    marketing: 0,
+    juridique: 0,
+    informatique: 0,
+    comptabilite: 0,
+    rh: 0,
+    coton: 0,
+    creditSupport: 0,
+    appuieTechnique: 0,
+  });
+  const [loading, setLoading] = useState(false);
   const { logout } = useAuth();
 
   useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const interns = await getInterns();
-        const total = interns.length;
-        const marketing = interns.filter((i) => i.departement === 'MARKETING').length;
-        const juridique = interns.filter((i) => i.departement === 'JURIDIQUE').length;
-        const informatique = interns.filter((i) => i.departement === 'INFORMATIQUE').length;
-        setStats({ total, marketing, juridique, informatique });
-      } catch (error) {
-        Alert.alert('Erreur', 'Impossible de charger les statistiques.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadStats();
-  }, []);
+    setLoading(true);
+    const total = interns.length;
+    const marketing = interns.filter((i) => i.departement === 'MARKETING').length;
+    const juridique = interns.filter((i) => i.departement === 'JURIDIQUE').length;
+    const informatique = interns.filter((i) => i.departement === 'INFORMATIQUE').length;
+    const comptabilite = interns.filter((i) => i.departement === 'COMPTABILITE').length;
+    const rh = interns.filter((i) => i.departement === 'RH').length;
+    const coton = interns.filter((i) => i.departement === 'COTON').length;
+    const creditSupport = interns.filter((i) => i.departement === 'CREDIT SUPPORT').length;
+    const appuieTechnique = interns.filter((i) => i.departement === 'APPUIE TECHNIQUE').length;
+    setStats({
+      total,
+      marketing,
+      juridique,
+      informatique,
+      comptabilite,
+      rh,
+      coton,
+      creditSupport,
+      appuieTechnique,
+    });
+    setLoading(false);
+  }, [interns]);
 
   const handleLogout = async () => {
     try {
@@ -47,6 +65,11 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.statText}>Marketing : {stats.marketing}</Text>
             <Text style={styles.statText}>Juridique : {stats.juridique}</Text>
             <Text style={styles.statText}>Informatique : {stats.informatique}</Text>
+            <Text style={styles.statText}>Comptabilité : {stats.comptabilite}</Text>
+            <Text style={styles.statText}>RH : {stats.rh}</Text>
+            <Text style={styles.statText}>Coton : {stats.coton}</Text>
+            <Text style={styles.statText}>Credit Support : {stats.creditSupport}</Text>
+            <Text style={styles.statText}>Appuie Technique : {stats.appuieTechnique}</Text>
           </View>
         )}
         <View style={styles.buttonContainer}>

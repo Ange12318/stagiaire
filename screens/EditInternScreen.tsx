@@ -13,7 +13,8 @@ import {
 import { ScrollView } from 'react-native-gesture-handler';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
-import { updateIntern, deleteInternPhoto, Intern } from '../storage/storage';
+import { useInterns } from '../context/InternContext';
+import { Intern } from '../storage/storage';
 import * as Permissions from 'react-native-permissions';
 
 export default function EditInternScreen({ route, navigation }) {
@@ -43,6 +44,8 @@ export default function EditInternScreen({ route, navigation }) {
   const [extrait, setExtrait] = useState<string | null>(intern?.extrait || null);
   const [cv, setCv] = useState<string | null>(intern?.cv || null);
   const [loading, setLoading] = useState(false);
+
+  const { updateIntern, deleteInternPhoto } = useInterns();
 
   useEffect(() => {
     if (renouvellementContrat === 'Oui' && dateEntree && dureeRenouvellement) {
@@ -136,29 +139,26 @@ export default function EditInternScreen({ route, navigation }) {
     if (!intern?.id || !validateForm()) return;
     setLoading(true);
     try {
-      await updateIntern(
-        intern.id,
-        {
-          nom,
-          prenoms,
-          dateNaissance: dateNaissance.toISOString().split('T')[0],
-          departement,
-          cni,
-          extrait,
-          cv,
-          tuteur,
-          dateEntree: dateEntree ? dateEntree.toISOString().split('T')[0] : undefined,
-          dateFin: dateFin ? dateFin.toISOString().split('T')[0] : undefined,
-          email,
-          telephone,
-          cnps,
-          renouvellementContrat,
-          dureeRenouvellement,
-        },
-        'Mise à jour des informations'
-      );
+      const updatedIntern = {
+        nom,
+        prenoms,
+        dateNaissance: dateNaissance.toISOString().split('T')[0],
+        departement,
+        cni,
+        extrait,
+        cv,
+        tuteur,
+        dateEntree: dateEntree ? dateEntree.toISOString().split('T')[0] : undefined,
+        dateFin: dateFin ? dateFin.toISOString().split('T')[0] : undefined,
+        email,
+        telephone,
+        cnps,
+        renouvellementContrat,
+        dureeRenouvellement,
+      };
+      await updateIntern(intern.id, updatedIntern, 'Mise à jour des informations');
       Alert.alert('Succès', 'Stagiaire modifié avec succès');
-      navigation.goBack();
+      navigation.navigate('InternDetails', { intern: { ...intern, ...updatedIntern } });
     } catch (error) {
       Alert.alert('Erreur', 'Une erreur est survenue lors de la mise à jour.');
     } finally {
@@ -332,7 +332,16 @@ export default function EditInternScreen({ route, navigation }) {
         )}
         <Text style={styles.label}>Département *</Text>
         <View style={styles.buttonContainer}>
-          {['MARKETING', 'JURIDIQUE', 'INFORMATIQUE'].map((dept) => (
+          {[
+            'MARKETING',
+            'JURIDIQUE',
+            'INFORMATIQUE',
+            'COMPTABILITE',
+            'RH',
+            'COTON',
+            'CREDIT SUPPORT',
+            'APPUIE TECHNIQUE',
+          ].map((dept) => (
             <TouchableOpacity
               key={dept}
               style={[styles.deptButton, departement === dept && styles.selectedDept]}
@@ -482,20 +491,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 20,
+    flexWrap: 'wrap',
   },
   deptButton: {
-    flex: 1,
     paddingVertical: 12,
     borderWidth: 1.5,
     borderColor: '#3498DB',
     borderRadius: 10,
     backgroundColor: '#F9F9F9',
     marginHorizontal: 5,
+    marginBottom: 10,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
+    minWidth: '30%',
   },
   selectedDept: {
     backgroundColor: '#3498DB',

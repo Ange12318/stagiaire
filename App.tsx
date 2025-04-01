@@ -9,6 +9,7 @@ import EditInternScreen from './screens/EditInternScreen';
 import InternListScreen from './screens/InternListScreen';
 import InternDetailsScreen from './screens/InternDetailsScreen';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { InternProvider } from './context/InternContext';
 
 const Stack = createStackNavigator();
 
@@ -35,9 +36,11 @@ const AppNavigator = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
+      <InternProvider>
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      </InternProvider>
     </AuthProvider>
   );
 }

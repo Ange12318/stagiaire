@@ -10,10 +10,13 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
-import { Intern, deleteIntern } from '../storage/storage';
+import { useInterns } from '../context/InternContext';
+import { Intern } from '../storage/storage';
 
 export default function InternDetailsScreen({ route, navigation }) {
-  const { intern }: { intern: Intern } = route.params;
+  const { intern: initialIntern }: { intern: Intern } = route.params;
+  const { interns, deleteIntern } = useInterns();
+  const intern = interns.find(i => i.id === initialIntern.id) || initialIntern;
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -59,7 +62,7 @@ export default function InternDetailsScreen({ route, navigation }) {
             try {
               await deleteIntern(intern.id);
               Alert.alert('Succès', 'Stagiaire supprimé avec succès');
-              navigation.goBack();
+              navigation.navigate('InternList');
             } catch (error) {
               Alert.alert('Erreur', 'Une erreur est survenue lors de la suppression.');
             } finally {
@@ -190,7 +193,6 @@ export default function InternDetailsScreen({ route, navigation }) {
         </View>
       </View>
 
-      {/* Modal pour afficher l'image en plein écran */}
       <Modal
         animationType="fade"
         transparent={true}
