@@ -22,7 +22,13 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "build": {
+        "babel": {
+          "include": ["./App.tsx", "./screens/**/*.tsx", "./context/**/*.tsx", "./storage/**/*.ts"],
+          "exclude": ["main.js"]
+        }
+      }
     }
   }
 }
