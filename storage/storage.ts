@@ -1,5 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
+// storage/storage.ts
 export interface Intern {
   id: string;
   nom: string;
@@ -30,6 +29,21 @@ export interface Intern {
 
 const INTERN_STORAGE_KEY = '@interns';
 
+// Wrapper pour localStorage compatible avec async/await
+const storage = {
+  getItem: async (key: string): Promise<string | null> => {
+    return Promise.resolve(localStorage.getItem(key));
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    localStorage.setItem(key, value);
+    return Promise.resolve();
+  },
+  removeItem: async (key: string): Promise<void> => {
+    localStorage.removeItem(key);
+    return Promise.resolve();
+  },
+};
+
 export const saveIntern = async (intern: Omit<Intern, 'id' | 'history'>) => {
   try {
     const existingInterns = await getInterns();
@@ -39,7 +53,7 @@ export const saveIntern = async (intern: Omit<Intern, 'id' | 'history'>) => {
       ...intern,
     };
     const updatedInterns = [...existingInterns, newIntern];
-    await AsyncStorage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
+    await storage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
   } catch (error) {
     console.error('Error saving intern:', error);
     throw error;
@@ -48,7 +62,7 @@ export const saveIntern = async (intern: Omit<Intern, 'id' | 'history'>) => {
 
 export const getInterns = async (): Promise<Intern[]> => {
   try {
-    const jsonValue = await AsyncStorage.getItem(INTERN_STORAGE_KEY);
+    const jsonValue = await storage.getItem(INTERN_STORAGE_KEY);
     return jsonValue != null ? JSON.parse(jsonValue) : [];
   } catch (error) {
     console.error('Error retrieving interns:', error);
@@ -70,7 +84,7 @@ export const updateIntern = async (id: string, updatedData: Partial<Intern>, cha
       }
       return intern;
     });
-    await AsyncStorage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
+    await storage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
   } catch (error) {
     console.error('Error updating intern:', error);
     throw error;
@@ -81,7 +95,7 @@ export const deleteIntern = async (id: string) => {
   try {
     const interns = await getInterns();
     const updatedInterns = interns.filter((intern) => intern.id !== id);
-    await AsyncStorage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
+    await storage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
   } catch (error) {
     console.error('Error deleting intern:', error);
     throw error;
@@ -97,7 +111,7 @@ export const deleteInternPhoto = async (id: string, photoType: 'cni' | 'extrait'
       }
       return intern;
     });
-    await AsyncStorage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
+    await storage.setItem(INTERN_STORAGE_KEY, JSON.stringify(updatedInterns));
   } catch (error) {
     console.error('Error deleting intern photo:', error);
     throw error;

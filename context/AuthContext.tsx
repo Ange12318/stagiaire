@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -9,12 +8,25 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Wrapper pour localStorage
+const storage = {
+  getItem: async (key: string): Promise<string | null> => Promise.resolve(localStorage.getItem(key)),
+  setItem: async (key: string, value: string): Promise<void> => {
+    localStorage.setItem(key, value);
+    return Promise.resolve();
+  },
+  removeItem: async (key: string): Promise<void> => {
+    localStorage.removeItem(key);
+    return Promise.resolve();
+  },
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await storage.getItem('authToken');
       setIsAuthenticated(!!token);
     };
     checkAuth();
@@ -22,7 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (username: string, password: string) => {
     if (username === 'admin' && password === '1234') {
-      await AsyncStorage.setItem('authToken', 'loggedIn');
+      await storage.setItem('authToken', 'loggedIn');
       setIsAuthenticated(true);
     } else {
       throw new Error('Identifiants incorrects');
@@ -30,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    await AsyncStorage.removeItem('authToken');
+    await storage.removeItem('authToken');
     setIsAuthenticated(false);
   };
 

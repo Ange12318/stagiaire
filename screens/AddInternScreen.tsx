@@ -12,9 +12,7 @@ import {
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
 import { useInterns } from '../context/InternContext';
-import * as Permissions from 'react-native-permissions';
 
 export default function AddInternScreen({ navigation }) {
   const [nom, setNom] = useState('');
@@ -38,6 +36,7 @@ export default function AddInternScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   const { addIntern } = useInterns();
+  const isDesktop = Platform.OS === 'web'; // Détection pour Electron
 
   useEffect(() => {
     if (renouvellementContrat === 'Oui' && dateEntree && dureeRenouvellement) {
@@ -53,28 +52,19 @@ export default function AddInternScreen({ navigation }) {
     }
   }, [renouvellementContrat, dureeRenouvellement, dateEntree]);
 
-  const requestPermissions = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Erreur', 'Permission d\'accès à la galerie refusée.');
-      return false;
-    }
-    return true;
-  };
-
-  const handlePickImage = async (setImage: (uri: string | null) => void) => {
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.5,
-    });
-
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
+  const handlePickImage = (setImage: (uri: string | null) => void, type: string) => {
+    if (isDesktop) {
+      // Pour Electron, demander une URL ou un chemin local
+      Alert.prompt(
+        `Entrer l'URL de l'image ${type}`,
+        'Collez une URL ou un chemin local',
+        (url) => {
+          if (url) setImage(url);
+        }
+      );
+    } else {
+      // Logique mobile (désactivée ici car non pertinente pour Electron)
+      Alert.alert('Erreur', 'Sélection d\'image non disponible sur cette plateforme.');
     }
   };
 
@@ -132,7 +122,7 @@ export default function AddInternScreen({ navigation }) {
         dureeRenouvellement,
       });
       Alert.alert('Succès', 'Stagiaire ajouté avec succès');
-      navigation.navigate('Home'); // Redirection vers Home au lieu de InternList
+      navigation.navigate('Home');
     } catch (error) {
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'ajout.');
     } finally {
@@ -328,7 +318,7 @@ export default function AddInternScreen({ navigation }) {
           ))}
         </View>
         <View style={styles.imageSection}>
-          <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setCni)}>
+          <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setCni, 'CNI')}>
             <Text style={styles.imagePickerText}>Ajouter CNI</Text>
           </TouchableOpacity>
           {cni && (
@@ -343,7 +333,7 @@ export default function AddInternScreen({ navigation }) {
           )}
         </View>
         <View style={styles.imageSection}>
-          <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setExtrait)}>
+          <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setExtrait, 'Extrait')}>
             <Text style={styles.imagePickerText}>Ajouter Extrait</Text>
           </TouchableOpacity>
           {extrait && (
@@ -358,7 +348,7 @@ export default function AddInternScreen({ navigation }) {
           )}
         </View>
         <View style={styles.imageSection}>
-          <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setCv)}>
+          <TouchableOpacity style={styles.imagePicker} onPress={() => handlePickImage(setCv, 'CV')}>
             <Text style={styles.imagePickerText}>Ajouter CV</Text>
           </TouchableOpacity>
           {cv && (
